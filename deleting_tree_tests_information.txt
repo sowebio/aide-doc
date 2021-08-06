@@ -1,0 +1,97 @@
+
+Doc GNATStudio CE 2020
+
+* How can I debug the Ada run-time library?
+
+The run time distributed in binary versions of GNAT has not been
+compiled with debug information, so it
+needs to be recompiled before you can debug it.
+The simplest way is to recompile your application and add the switches
+-a and -f to the gnatmake
+
+gnatmake est obsolète mais allons y...
+gnatmake -a -f -v -P aide.gpr
+warning: switch -a is ignored and no additional source is compiled
+
+Ça renarde le stub sur gprbuild...
+
+gprbuild -a -f -v -P aide.gpr
+warning: switch -a is ignored and no additional source is compiled
+
+OK, c'est bien un stub et la doc n'est pas à jour...
+
+Appliquons la recette indiquée dans Makefile.adalib : 
+
+--------------------------------------------
+
+mkdir /home/sr/opt/gnat-2020/lib/gcc/x86_64-pc-linux-gnu/9.3.1/rts-native-debug/adalib
+
+cp /home/sr/opt/gnat-2020/lib/gcc/x86_64-pc-linux-gnu/9.3.1/rts-native/adalib/Makefile.adalib /home/sr/opt/gnat-2020/lib/gcc/x86_64-pc-linux-gnu/9.3.1/rts-native-debug/adalib/Makefile.adalib
+
+ln -s /home/sr/opt/gnat-2020/lib/gcc/x86_64-pc-linux-gnu/9.3.1/rts-native/adainclude /home/sr/opt/gnat-2020/lib/gcc/x86_64-pc-linux-gnu/9.3.1/rts-native-debug/adainclude
+
+cd /home/sr/opt/gnat-2020/lib/gcc/x86_64-pc-linux-gnu/9.3.1/rts-native-debug/adalib
+
+make -f Makefile.adalib ROOT=/home/sr/opt/gnat-2020 CFLAGS="-g -O0"
+
+770 lignes de build plus tard, libgnat.a et libgnarl.a sont créées en read-only (444)
+
+Simple.
+
+On constatera que le nuc intel i5 de 2017 qui a servi à builder n'est pas totalement ridicule :
+
+real  0m59,283s
+user  0m48,732s
+sys   0m 9,757s
+
+D'ailleurs, en utilisant j0 (tous les cœurs pour compiler), on a un GNAT qui fuse...
+
+Et ensuite, dans les .gpr, pour le type de build : DEBUG
+
+for Runtime ("Ada") use "/home/sr/opt/gnat-2020/lib/gcc/x86_64-pc-linux-gnu/9.3.1/rts-native-debug";
+
+Simple (bis).
+
+
+
+Et là, c'est bon, on debugge le runtime et on trouve que 
+
+Le chemin root est déclaré valide
+
+
+Du coté de More_Entries > Fetch_Next_Entry > readdir_gnat > Match
+
+On arrive à un lien symbolique libxmlada_input_sources.so (un lien symbolique cassé) qui est déclaré ne pas exister par File_Exists_Attr (C_Full_Name'Address, Attr'Access); en 776 qui est en fait __gnat_file_exists_attr en 1668 de adaint.c qui fait référence à une structure dans adaint.h
+
+struct file_attributes {
+  int           error;
+  /* Errno value returned by stat()/fstat(). If non-zero, other fields should
+   * be considered as invalid.
+   */
+
+  unsigned char exists;
+
+  unsigned char writable;
+  unsigned char readable;
+  unsigned char executable;
+
+  unsigned char symbolic_link;
+  unsigned char regular;
+  unsigned char directory;
+
+Qui appelle  __gnat_stat_to_attr
+
+Qui teste un file descripteur à -1 (lien symbolique cassé ?)
+
+En 618 de Ada.Directories
+(gdb) print Fname
+$506 = <error reading variable: la taille de l'objet est plus que grande que varsize-limit>
+
+
+raised ADA.IO_EXCEPTIONS.USE_ERROR : directory tree rooted at "/home/sr/opt/gnat-2019/lib/xmlada/xmlada_input.relocatable" could not be deleted
+
+
+if not Is_Valid_Path_Name (Directory) then
+
+
+siiiiiiimple :)
