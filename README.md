@@ -1,5 +1,7 @@
 # AIDE for Debian & Ubuntu Manual
 
+**AIDE is now deprecated by ADEL**
+
 ## Introduction
 
 **AIDE**, Ada Instant Development Environment, make **Ada integrated development environment setup a breeze**. AIDE is intended to GNU/Linux Debian, Ubuntu and derivatives using Libre software. AIDE is written in Ada, as too GNAT Studio, the Ada IDE and GNAT, the GCC Ada compiler.
